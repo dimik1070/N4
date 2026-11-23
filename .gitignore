@@ -10,3 +10,10 @@ exports/ru/
 
 # локальные выгрузки браузера
 *.download
+
+# кэш скачанного произношения (gen_audio.py) — в репозиторий не нужен
+_audio_cache/
+
+# собранная папка для загрузки на GitHub (prepare_upload.py)
+github-upload/
+exports/audio_report.json

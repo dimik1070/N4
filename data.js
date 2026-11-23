@@ -5,11 +5,13 @@
 
   /* ------------------------------------------------ data loader ---------- */
   const cache = {};
+  const DATA_DIR = ""; // prepare_upload.py меняет это на "" при плоской сборке
+  function dataUrl(name) { return DATA_DIR + name; }
   function loadChunk(name) {
     if (cache[name]) return Promise.resolve(cache[name]);
     return new Promise(function (resolve, reject) {
       const s = document.createElement("script");
-      s.src = name + ".js";
+      s.src = dataUrl(name + ".js");
       s.onload = function () {
         const data = (window.JLPTDATA || {})[name];
         if (!data) return reject(new Error("chunk " + name + " пуст"));
@@ -17,7 +19,7 @@
         resolve(data);
       };
       s.onerror = function () {
-        reject(new Error("не удалось загрузить " + name + ".js"));
+        reject(new Error("не удалось загрузить " + dataUrl(name + ".js")));
       };
       document.head.appendChild(s);
     });
@@ -117,13 +119,171 @@
     } catch (e) { /* игнорируем */ }
   };
 
+  /* ------------------------------------------------ озвучка ------------- */
+  // Текст произношения: фуригана -> чтение, скобки убрать. Та же нормализация,
+  // что в gen_audio.py, поэтому ключи манифеста data/audio.js совпадают.
+  const SAY_STRIP = /[「」『』（）()〈〉《》・…※→〜~＠]/g;
+  JLPT.sayText = function (raw) {
+    let t = String(raw == null ? "" : raw).normalize("NFKC");
+    t = t.replace(/\{[^{}|]*\|([^{}|]+)\}/g, "$1");
+    t = t.replace(/\{([^{}|]+)\}/g, "$1");
+    t = t.replace(SAY_STRIP, "");
+    return t.replace(/\s+/g, " ").trim();
+  };
+  JLPT.canSay = function (text) { return (/[぀-ヿ㐀-䶿一-鿿]/.test(text)); };
+
+  // ДВА РЕЖИМА ОЗВУЧКИ.
+  //   CLIPS_BUILT = true  — рядом лежат MP3-части (docs/data/audio*.mp3), сайт играет
+  //                         готовые записи, а голос браузера служит запасным вариантом.
+  //   CLIPS_BUILT = false — записей нет вообще: весь звук создаёт сам браузер через
+  //                         Web Speech API (speechSynthesis), поэтому в репозиторий не
+  //                         нужно класть ~94 МБ аудио. prepare_upload.py меняет эту
+  //                         строку на false при плоской сборке для GitHub.
+  let CLIPS_BUILT = false; // prepare_upload.py меняет это на false
+  JLPT.clipsBuilt = function () { return CLIPS_BUILT; };
+
+  let audioMeta = null, audioPromise = null, audioFailed = false;
+  function loadAudio() {
+    if (!CLIPS_BUILT) return Promise.resolve(null);
+    if (audioMeta) return Promise.resolve(audioMeta);
+    if (audioFailed) return Promise.resolve(null);
+    if (audioPromise) return audioPromise;
+    audioPromise = loadChunk("audio").then(function (data) {
+      audioMeta = data; audioPromise = null; return data;
+    }).catch(function () { audioFailed = true; audioPromise = null; return null; });
+    return audioPromise;
+  }
+
+  const partCache = {};
+  function partBuffer(index) {
+    if (partCache[index]) return partCache[index];
+    partCache[index] = fetch(dataUrl(audioMeta.parts[index].file)).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.arrayBuffer();
+    }).catch(function (e) { delete partCache[index]; throw e; });
+    return partCache[index];
+  }
+
+  let player = null;
+  function playClip(text) {
+    const clip = audioMeta && audioMeta.clips ? audioMeta.clips[text] : null;
+    if (!clip) return Promise.resolve(false);
+    return partBuffer(clip[0]).then(function (buf) {
+      const blob = new Blob([buf.slice(clip[1], clip[1] + clip[2])], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      return new Promise(function (resolve) {
+        const a = new Audio(url);
+        a.playbackRate = JLPT.sayRate();
+        if (player) { try { player.pause(); } catch (e) { /* уже остановлен */ } }
+        player = a;
+        let settled = false;
+        const done = function (ok) {
+          if (settled) return;
+          settled = true;
+          URL.revokeObjectURL(url);
+          if (player === a) player = null;
+          resolve(ok);
+        };
+        a.addEventListener("playing", function () { done(true); });
+        a.addEventListener("error", function () { done(false); });
+        const started = a.play();
+        if (started && started.catch) started.catch(function () { done(false); });
+      });
+    }).catch(function () { return false; });
+  }
+
+  // Запасной вариант: голос браузера (Web Speech API), если готовой записи нет.
+  let voices = [];
+  function grabVoices() { voices = (window.speechSynthesis && speechSynthesis.getVoices()) || []; }
+  if (window.speechSynthesis) {
+    grabVoices();
+    speechSynthesis.onvoiceschanged = grabVoices;
+    setTimeout(grabVoices, 400);
+  }
+  JLPT.jaVoices = function () {
+    return voices.filter(function (v) { return /^ja/i.test(v.lang || ""); });
+  };
+  JLPT.allVoices = function () { return voices; };
+
+  function pickVoice() {
+    if (!voices.length) grabVoices();
+    const wanted = state.settings.voiceName;
+    if (wanted) {
+      const exact = voices.filter(function (v) { return v.name === wanted; })[0];
+      if (exact) return exact;
+    }
+    return JLPT.jaVoices()[0] || null;
+  }
+  // Имя голоса, которым сайт будет говорить (пусто, если японского голоса нет).
+  JLPT.voiceName = function () { return pickVoice() ? pickVoice().name : ""; };
+
+  let lastVoiceName = "";
+  function speakWithBrowserVoice(text) {
+    if (!window.speechSynthesis) return false;
+    const chosen = pickVoice();
+    if (!chosen) return false;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = chosen.lang || "ja-JP";
+      u.voice = chosen;
+      u.rate = JLPT.sayRate();
+      lastVoiceName = chosen.name;
+      // В Chrome speak() сразу после cancel() иногда молчит — говорим следующим кадром.
+      try { speechSynthesis.cancel(); } catch (e) { /* уже остановлен */ }
+      setTimeout(function () {
+        try { speechSynthesis.speak(u); } catch (e) { /* не важно */ }
+      }, 24);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  JLPT.voiceOn = function () { return state.settings.voice !== false; };
+  JLPT.autoSayOn = function () { return state.settings.autosay !== false; };
+  JLPT.browserVoiceOn = function () { return state.settings.speech !== false; };
+  JLPT.sayRate = function () { return state.settings.rate || 1; };
+  JLPT.stopSay = function () {
+    if (player) { try { player.pause(); } catch (e) { /* уже остановлен */ } player = null; }
+    if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch (e) { /* не важно */ } }
+  };
+
+  // Главная точка входа: голос браузера; если сборка содержит MP3-записи — сначала они.
+  JLPT.say = function (raw) {
+    if (!JLPT.voiceOn()) return Promise.resolve(false);
+    const text = JLPT.sayText(raw);
+    if (!text || !JLPT.canSay(text)) return Promise.resolve(false);
+    if (!CLIPS_BUILT) {
+      return Promise.resolve(JLPT.browserVoiceOn() ? speakWithBrowserVoice(text) : false);
+    }
+    return loadAudio().then(function () { return playClip(text); }).then(function (ok) {
+      if (ok) return true;
+      if (JLPT.browserVoiceOn()) return speakWithBrowserVoice(text);
+      return false;
+    });
+  };
+
+  // Краткое состояние для панели настроек озвучки.
+  JLPT.audioStatus = function () {
+    return loadAudio().then(function (meta) {
+      return {
+        clipsBuilt: CLIPS_BUILT,
+        clips: meta && meta.clips ? Object.keys(meta.clips).length : 0,
+        parts: meta && meta.parts ? meta.parts.length : 0,
+        failed: audioFailed,
+        voiceName: JLPT.voiceName(),
+        lastVoiceName: lastVoiceName,
+        jaVoices: JLPT.jaVoices().length,
+        voices: JLPT.allVoices().length
+      };
+    });
+  };
+
   /* ------------------------------------------------ progress store ------ */
   const KEY = "jlpt4.progress.v1";
   const BOX_SECONDS = [1800, 21600, 86400, 3 * 86400, 7 * 86400, 21 * 86400]; // 30м, 6ч, 1д, 3д, 7д, 21д
   const MAX_BOX = BOX_SECONDS.length - 1;
 
   function defaults() {
-    return { items: {}, sessions: [], settings: { sound: true }, created: Date.now() };
+    return { items: {}, sessions: [], settings: { sound: true, voice: true, autosay: true, speech: true, rate: 1 }, created: Date.now() };
   }
   let state = defaults();
   try {
@@ -133,7 +293,7 @@
       state = Object.assign(defaults(), parsed);
       state.items = state.items || {};
       state.sessions = state.sessions || [];
-      state.settings = Object.assign({ sound: true }, state.settings || {});
+      state.settings = Object.assign({ sound: true, voice: true, autosay: true, speech: true, rate: 1 }, state.settings || {});
     }
   } catch (e) { state = defaults(); }
 

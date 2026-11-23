@@ -52,6 +52,19 @@ def main():
                          " ORDER BY vocab_id, position"):
         kanji_of.setdefault(r["id"], []).append(r["character"])
 
+    # чтения для озвучки: онъёме сначала, потом кунъёме (ровно те строки, что
+    # озвучивает gen_audio.py, поэтому запись находится с первого раза)
+    say_of = {}
+    for r in con.execute("SELECT character, kind, reading_kana FROM kanji_readings"
+                         " WHERE kind IN ('on','kun') AND reading_kana IS NOT NULL"
+                         " ORDER BY CASE kind WHEN 'on' THEN 0 ELSE 1 END, reading_kana"):
+        bucket = say_of.setdefault(r["character"], [])
+        if len(bucket) >= 4:
+            continue
+        if any(item["t"] == r["reading_kana"] for item in bucket):
+            continue
+        bucket.append({"r": r["kind"], "t": r["reading_kana"]})
+
     def vocab_rows(level):
         rows = []
         for v in con.execute("SELECT * FROM vocab WHERE level = ? ORDER BY reading, word", (level,)):
@@ -96,6 +109,7 @@ def main():
             "meaningsEn": json.loads(k["meanings_en"]),
             "ru": k["meaning_ru"],
             "sourceNote": k["source_note"],
+            "say": say_of.get(k["character"], []),
             "words": (words_of.get(k["character"]) or [])[:14],
         })
 

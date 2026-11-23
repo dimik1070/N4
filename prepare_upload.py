@@ -7,7 +7,18 @@
 репозитории не нужны вовсе, а в GitHub Pages выбирается корень (/). Исходные JSON тоже
 раскладываются плоско — build_db.py умеет читать их и так, и из _sources/openjlpt/.
 
+ОЗВУЧКА. По умолчанию (INCLUDE_AUDIO = False) в репозиторий НЕ попадают MP3-части:
+кнопки 🔊 произносят японский текст голосом самого браузера (Web Speech API), поэтому
+весь набор весит около 7 МБ вместо ~101 МБ. В собранном data.js появляется
+CLIPS_BUILT = false, и сайт даже не пытается качать audio.js/audio*.mp3.
+Если захотите вернуть готовые MP3-записи (локальный сайт или догрузка позже):
+сначала `python gen_audio.py`, затем INCLUDE_AUDIO = True (строка ниже).
+
 Запуск из папки проекта:  python prepare_upload.py
+Куда складывать: переменная окружения UPLOAD_DIR (по умолчанию github-upload рядом
+с этим скриптом). Например, чтобы собрать сразу на Рабочем столе:
+    $env:UPLOAD_DIR = "$env:USERPROFILE\\OneDrive\\Desktop\\github-upload"
+    python prepare_upload.py
 """
 
 import os
@@ -16,7 +27,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.join(HERE, "docs")
-OUT = os.path.join(HERE, "github-upload")
+OUT = os.environ.get("UPLOAD_DIR") or os.path.join(HERE, "github-upload")
+
+# False — озвучку создаёт браузер, MP3-частей в репозитории нет (рекомендуется).
+# True  — положить готовые записи audio.js + audio1.mp3 … audio15.mp3 (~94 МБ).
+INCLUDE_AUDIO = False
 
 # файлы проекта, которые копируются как есть
 TOP_FILES = [
@@ -32,6 +47,9 @@ TOP_FILES = [
     "make_readme.py",
     "qa_ru.py",
 ]
+
+# эти два скрипта нужны только для режима MP3-записей
+AUDIO_TOOLS = ["gen_audio.py", "check_audio.py"]
 
 # сайт: (путь в docs, имя в репозитории, нужно ли переписать пути)
 SITE_FILES = [
@@ -61,6 +79,10 @@ def flatten(text):
     text = text.replace('src="js/', 'src="')
     text = text.replace('s.src = "data/" + name', 's.src = name')
     text = text.replace('загрузить data/" + name', 'загрузить " + name')
+    text = text.replace('const DATA_DIR = "data/";', 'const DATA_DIR = "";')
+    if not INCLUDE_AUDIO:
+        # MP3-частей нет: озвучку полностью берёт на себя браузер.
+        text = text.replace('let CLIPS_BUILT = true;', 'let CLIPS_BUILT = false;')
     return text
 
 
@@ -94,6 +116,17 @@ def main():
     for rel, name, rewrite in SITE_FILES:
         copied.append(put(os.path.join(SITE, rel), name, used, rewrite))
 
+    # озвучка MP3-записями: манифест audio.js и части audio1.mp3, audio2.mp3 ...
+    if INCLUDE_AUDIO:
+        data_dir = os.path.join(SITE, "data")
+        for name in sorted(os.listdir(data_dir)):
+            if name.startswith("audio"):
+                copied.append(put(os.path.join(data_dir, name), name, used))
+        for name in AUDIO_TOOLS:
+            src = os.path.join(HERE, name)
+            if os.path.exists(src):
+                copied.append(put(src, name, used))
+
     for name in TOP_FILES:
         src = os.path.join(HERE, name)
         if not os.path.exists(src):
@@ -120,7 +153,13 @@ def main():
     print("-" * 34)
     print("файлов: %d, всего: %.2f МБ" % (len(copied), total / 1048576.0))
     print()
-    print("Загружать одним разом: все %d файлов из папки github-upload (папок нет)." % len(copied))
+    if INCLUDE_AUDIO:
+        print("Озвучка: готовые MP3-записи, голос браузера — запасной путь.")
+    else:
+        print("Озвучка: её создаёт браузер (Web Speech API), MP3-частей в наборе нет.")
+    if total > 90 * 1048576:
+        print("ВНИМАНИЕ: набор тяжелее 90 МБ — веб-загрузка на GitHub может не пройти.")
+    print("Загружать одним разом: все файлы из папки %s — %d шт., папок нет." % (OUT, len(copied)))
     print("GitHub Pages: Settings -> Pages -> Deploy from a branch -> main -> / (корень).")
 
 

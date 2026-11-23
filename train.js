@@ -25,6 +25,23 @@
     return null;
   }
 
+  /* Озвучка в тренажёре: q.sayAsk произносится, когда вопрос показан (там,
+     где это не выдаёт ответ), q.say — после ответа. sayBtn — кнопка повтора. */
+  function firstReading(k) {
+    var s = k.say || [];
+    if (s.length) return s[0].t;
+    return (k.on || [])[0] || (k.kun || [])[0] || "";
+  }
+  function sayBtn(text, cls) {
+    if (!text || !JLPT.voiceOn()) return "";
+    return "<button class='say" + (cls ? " " + cls : "") + "' data-say=\"" + esc(text) + "\"" +
+      " title=\"Прослушать по-японски\" aria-label=\"Прослушать по-японски\">🔊</button>";
+  }
+  function autoSay(text) {
+    if (!text || !JLPT.voiceOn() || !JLPT.autoSayOn()) return;
+    JLPT.say(text);
+  }
+
   /* ------------------------------------------------------ pools ---------- */
   function poolFrom(list, kind) {
     return list.map(function (item) {
@@ -85,7 +102,8 @@
         back: "<div class='answer-field'>" + esc(v.ru) + "</div>" +
               "<div class='kanji-meta'><span>" + esc(v.romaji) + "</span><span>" + esc((v.pos || []).join(", ")) + "</span>" +
               (v.ex[0] ? "<span>" + fu(v.ex[0].ja) + "</span>" : "") + "</div>",
-        explain: v.word + " [" + v.reading + "] — " + v.ru
+        explain: v.word + " [" + v.reading + "] — " + v.ru,
+        say: v.reading
       };
     }
     if (mode === "choice-ru") {
@@ -95,7 +113,8 @@
         prompt: "<div class='big'>" + fu(v.word) + "</div>" +
                 "<div class='answer-field'>" + (v.reading !== v.word ? fu(v.reading) : esc(v.romaji)) + "</div>",
         question: "Что означает это слово?",
-        options: opts, explain: v.ru + " · " + (v.ex[0] ? fu(v.ex[0].ja) + " — " + v.ex[0].ru : "")
+        options: opts, explain: v.ru + " · " + (v.ex[0] ? fu(v.ex[0].ja) + " — " + v.ex[0].ru : ""),
+        ask: v.reading, askAuto: true, say: v.reading
       };
     }
     if (mode === "choice-jp") {
@@ -104,7 +123,8 @@
         type: "choice", key: entry.key,
         prompt: "<div class='big' style='font-size:30px'>" + esc(v.ru) + "</div>",
         question: "Какое японское слово так переводится?",
-        options: o2, explain: v.word + " [" + v.reading + "] — " + v.ru
+        options: o2, explain: v.word + " [" + v.reading + "] — " + v.ru,
+        say: v.reading
       };
     }
     if (mode === "reading") {
@@ -121,7 +141,8 @@
           return JLPT.normRomaji(i) === acceptRo && acceptRo.length > 0;
         },
         expected: fu(v.reading) + " · " + esc(v.romaji),
-        explain: (v.ex[0] ? fu(v.ex[0].ja) + " — " + v.ex[0].ru : "")
+        explain: (v.ex[0] ? fu(v.ex[0].ja) + " — " + v.ex[0].ru : ""),
+        say: v.reading
       };
     }
     return null;
@@ -147,7 +168,8 @@
         front: "<div class='big' style='font-size:76px'>" + esc(k.char) + "</div><div class='kanji-meta'><span>" + meta + "</span></div>",
         back: "<div class='answer-field'>" + esc(k.ru) + "</div>" +
               "<div class='kanji-meta'><span>オン: " + esc((k.on || []).join("・")) + "</span><span>クン: " + esc((k.kun || []).join("・")) + "</span></div>",
-        explain: k.char + " — " + k.ru
+        explain: k.char + " — " + k.ru,
+        say: firstReading(k)
       };
     }
     if (mode === "kanji-reading") {
@@ -164,7 +186,8 @@
         prompt: "<div class='big' style='font-size:76px'>" + esc(k.char) + "</div>",
         question: "Выберите верное чтение этого иероглифа",
         options: opts.map(function (o) { return { text: o.text, html: fu(o.text), correct: o.correct }; }),
-        explain: k.char + ": " + (k.on || []).join("・") + " / " + (k.kun || []).join("・") + " — " + k.ru
+        explain: k.char + ": " + (k.on || []).join("・") + " / " + (k.kun || []).join("・") + " — " + k.ru,
+        say: correct
       };
     }
     if (mode === "kanji-meaning") {
@@ -173,7 +196,8 @@
         type: "choice", key: entry.key,
         prompt: "<div class='big' style='font-size:76px'>" + esc(k.char) + "</div>",
         question: "Что означает этот иероглиф?",
-        options: o3, explain: k.char + " — " + k.ru + " (" + meta + ")"
+        options: o3, explain: k.char + " — " + k.ru + " (" + meta + ")",
+        say: firstReading(k)
       };
     }
     if (mode === "kanji-strokes") {
@@ -205,7 +229,8 @@
         back: "<div class='answer-field'>" + esc(g.ru) + "</div>" +
               "<div class='kanji-meta'><span>" + esc(g.formationRu || "") + "</span></div>" +
               (ex ? "<div class='example'><div class='ja'>" + fu(ex.fu) + "</div><div class='ru'>" + esc(ex.ru) + "</div></div>" : ""),
-        explain: g.pattern + " — " + g.ru
+        explain: g.pattern + " — " + g.ru,
+        say: ex ? ex.fu : ""
       };
     }
     if (mode === "gram-meaning") {
@@ -215,7 +240,8 @@
         prompt: "<div class='big' style='font-size:40px'>" + esc(g.pattern) + "</div>" +
                 (g.romaji ? "<div class='answer-field'>" + esc(g.romaji) + "</div>" : ""),
         question: "Что выражает эта конструкция?",
-        options: opts, explain: g.pattern + " — " + g.ru + (g.formationRu ? " · " + g.formationRu : "")
+        options: opts, explain: g.pattern + " — " + g.ru + (g.formationRu ? " · " + g.formationRu : ""),
+        say: ex ? ex.fu : ""
       };
     }
     if (mode === "gram-pattern") {
@@ -224,7 +250,8 @@
         type: "choice", key: entry.key,
         prompt: "<div class='big' style='font-size:30px'>" + esc(g.ru) + "</div>",
         question: "Какая конструкция так работает?",
-        options: o2, explain: g.pattern + " — " + g.ru
+        options: o2, explain: g.pattern + " — " + g.ru,
+        say: ex ? ex.fu : ""
       };
     }
     if (mode === "gram-example") {
@@ -237,7 +264,8 @@
         prompt: "<div class='big' style='font-size:26px'>" + fu(e.fu) + "</div>" +
                 "<div class='answer-field' style='font-size:16px'>" + esc(e.ru) + "</div>",
         question: "Какая конструкция здесь использована?",
-        options: o3, explain: g.pattern + " — " + g.ru + (g.formationRu ? " · " + g.formationRu : "")
+        options: o3, explain: g.pattern + " — " + g.ru + (g.formationRu ? " · " + g.formationRu : ""),
+        ask: e.fu, askAuto: true, say: e.fu
       };
     }
     return null;
@@ -313,7 +341,8 @@
       if (!q) return renderQuestion();
       if (q.type === "flash") {
         renderShell(
-          "<div class='prompt'>Карточка " + (idx + 1) + " — нажмите, чтобы перевернуть</div>" +
+          "<div class='prompt'>Карточка " + (idx + 1) + " — нажмите, чтобы перевернуть" +
+            sayBtn(q.ask, "inline") + "</div>" +
           "<div class='flashcard' id='fc'>" + q.front + "<div class='flip-hint'>нажмите / пробел</div></div>" +
           "<div id='fb'></div>"
         );
@@ -323,6 +352,7 @@
           if (flipped) return;
           flipped = true;
           fc.innerHTML = q.back + "<div class='flip-hint'>оцените себя</div>";
+          autoSay(q.say);
           document.getElementById("fb").innerHTML =
             "<div class='row' style='margin-top:16px'>" +
             "<button class='btn pink' data-grade='0'>Не помню</button>" +
@@ -353,9 +383,10 @@
           return "<button class='opt' data-i='" + i + "'><b>" + (i + 1) + ".</b> " + (o.html || esc(o.text)) + "</button>";
         }).join("");
         renderShell(
-          "<div class='prompt'>" + esc(q.question) + "</div>" + q.prompt +
+          "<div class='prompt'>" + esc(q.question) + sayBtn(q.ask, "inline") + "</div>" + q.prompt +
           "<div class='opts' id='opts'>" + optsHtml + "</div><div id='fb'></div>"
         );
+        if (q.askAuto) autoSay(q.ask);
         mount._flip = null; mount._type = null;
         var buttons = document.querySelectorAll("#opts .opt");
         Array.prototype.forEach.call(buttons, function (b) {
@@ -377,9 +408,11 @@
           answered.push({ key: q.key, ok: ok });
           bestStreak = Math.max(bestStreak, streak);
           JLPT.beep(ok ? "ok" : "no");
+          autoSay(q.say);
           document.getElementById("fb").innerHTML =
             "<div class='feedback " + (ok ? "ok" : "no") + "'>" + (ok ? "Верно. " : "Неверно. ") + fu(q.explain || "") +
-            "</div><div class='row' style='margin-top:14px'><button class='btn' id='next'>Далее →</button></div>";
+            "</div><div class='row' style='margin-top:14px'>" + sayBtn(q.say) +
+            "<button class='btn' id='next'>Далее →</button></div>";
           var next = document.getElementById("next");
           next.onclick = function () { idx++; renderQuestion(); };
           next.focus();
@@ -389,7 +422,7 @@
       }
       // typed answer
       renderShell(
-        "<div class='prompt'>" + esc(q.question) + "</div>" + q.prompt +
+        "<div class='prompt'>" + esc(q.question) + sayBtn(q.ask, "inline") + "</div>" + q.prompt +
         "<div class='row' style='margin-top:18px'>" +
           "<input class='input' id='ans' autocomplete='off' spellcheck='false' placeholder='ваш ответ' style='flex:1;min-width:220px'>" +
           "<button class='btn' id='check'>Проверить</button>" +
@@ -409,13 +442,15 @@
         answered.push({ key: q.key, ok: ok });
         bestStreak = Math.max(bestStreak, streak);
         JLPT.beep(ok ? "ok" : "no");
+        autoSay(q.say);
         input.disabled = true;
         document.getElementById("check").disabled = true;
         document.getElementById("fb").innerHTML =
           "<div class='feedback " + (ok ? "ok" : "no") + "'>" +
           (ok ? "Верно. " : "Неверно. Правильный ответ: ") + q.expected +
           (q.explain ? "<br>" + fu(q.explain) : "") +
-          "</div><div class='row' style='margin-top:14px'><button class='btn' id='next'>Далее →</button></div>";
+          "</div><div class='row' style='margin-top:14px'>" + sayBtn(q.say) +
+          "<button class='btn' id='next'>Далее →</button></div>";
         var next = document.getElementById("next");
         next.onclick = function () { idx++; renderQuestion(); };
         next.focus();

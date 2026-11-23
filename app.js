@@ -31,15 +31,62 @@
   function ruby(text) { return fu(text); }
   function setHTML(el, html) { el.innerHTML = html; }
 
+  /* Кнопка озвучки: data-say хранит японский текст (фуригану), JLPT.say сам
+     подбирает готовую MP3-запись или голос браузера. */
+  function sayBtn(text, cls) {
+    return "<button class='say" + (cls ? " " + cls : "") + "' data-say=\"" + esc(text) + "\"" +
+      " title=\"Прослушать по-японски\" aria-label=\"Прослушать по-японски\">🔊</button>";
+  }
+  function sayChip(text, label) {
+    return "<button class='say-chip' data-say=\"" + esc(text) + "\">" +
+      "<span>" + esc(text) + "</span><i>" + esc(label) + "</i></button>";
+  }
+
+  var sayHintShown = false;
+  function sayHint() {
+    if (sayHintShown) return;
+    sayHintShown = true;
+    var t = document.createElement("div");
+    t.className = "toast";
+    t.innerHTML = "Озвучки сейчас нет: браузер не нашёл японский голос. Нажмите «あ» вверху — там подсказка, как его добавить, и настройки голоса.";
+    document.body.appendChild(t);
+    setTimeout(function () { t.classList.add("out"); }, 6000);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 7200);
+  }
+
+  function findSay(node) {
+    while (node && node !== document) {
+      if (node.getAttribute && node.hasAttribute("data-say")) return node;
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  // Capture-фаза нужна, чтобы кнопка внутри флеш-карточки не переворачивала её.
+  document.addEventListener("click", function (e) {
+    var btn = findSay(e.target);
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    btn.classList.add("busy");
+    JLPT.say(btn.getAttribute("data-say")).then(function (ok) {
+      btn.classList.remove("busy");
+      btn.classList.toggle("miss", !ok);
+      if (!ok) sayHint();
+    });
+  }, true);
+
   function cardWord(v) {
     var pos = (v.pos || []).slice(0, 3).map(function (p) { return "<span class='badge'>" + esc(p) + "</span>"; }).join(" ");
     var ex = (v.ex || []).slice(0, 2).map(function (e) {
-      return "<div class='example'><div class='ja'>" + ruby(e.fu) + "</div><div class='ru'>" + esc(e.ru) + "</div></div>";
+      return "<div class='example'><div class='ja'>" + ruby(e.fu) + sayBtn(e.fu, "inline") +
+        "</div><div class='ru'>" + esc(e.ru) + "</div></div>";
     }).join("");
     var chips = (v.kanji || []).map(function (ch) {
       return "<a class='kchip' href='#/kanji/" + encodeURIComponent(ch) + "'>" + esc(ch) + "</a>";
     }).join("");
     return "<article class='card entry' data-wordid='" + v.id + "'>" +
+      "<div class='tools'>" + sayBtn(v.reading) + "</div>" +
       "<div class='head'><span class='word'>" + ruby(v.word) + "</span>" +
         (v.reading !== v.word ? "<span class='reading'>" + esc(v.reading) + "</span>" : "") +
         "<span class='romaji'>" + esc(v.romaji) + "</span>" + JLPT.levelBadge(v.level) + "</div>" +
@@ -50,7 +97,11 @@
   }
 
   function cardKanji(k) {
-    return "<a class='card' style='text-decoration:none;color:inherit' href='#/kanji/" + encodeURIComponent(k.char) + "'>" +
+    var say = (k.say || []).slice(0, 3).map(function (s) {
+      return sayChip(s.t, s.r === "on" ? "オン" : "クン");
+    }).join("");
+    return "<div class='card kanji-card'>" +
+      "<a class='kanji-link' href='#/kanji/" + encodeURIComponent(k.char) + "'>" +
       "<div class='row' style='justify-content:space-between'>" +
         "<div class='kanji-glyph'>" + esc(k.char) + "</div>" +
         "<div class='kanji-meta' style='text-align:right'>" + JLPT.levelBadge(k.level) +
@@ -62,7 +113,9 @@
         "<span><b>クン:</b> " + ruby((k.kun || []).join("、") || "—") + "</span>" +
       "</div>" +
       "<div class='mean' style='margin-top:8px'>" + esc(k.ru) + "</div>" +
-      "</a>";
+      "</a>" +
+      (say ? "<div class='say-chips'>" + say + "</div>" : "") +
+      "</div>";
   }
 
   function cardGrammar(g, tagNames) {
@@ -70,7 +123,8 @@
       return "<span class='badge'>" + esc((tagNames && tagNames[t]) || t) + "</span>";
     }).join(" ");
     var ex = (g.ex || []).slice(0, 2).map(function (e) {
-      return "<div class='example'><div class='ja'>" + ruby(e.fu) + "</div><div class='ru'>" + esc(e.ru) + "</div></div>";
+      return "<div class='example'><div class='ja'>" + ruby(e.fu) + sayBtn(e.fu, "inline") +
+        "</div><div class='ru'>" + esc(e.ru) + "</div></div>";
     }).join("");
     return "<article class='card entry'>" +
       "<div class='head'><span class='word'>" + esc(g.pattern) + "</span>" +
@@ -322,10 +376,17 @@
             "<span><b>English:</b> " + esc((k.meaningsEn || []).join("; ")) + "</span>" +
             (k.sourceNote ? "<span class='notice'>" + esc(k.sourceNote) + "</span>" : "") +
           "</div>" +
+          (k.say && k.say.length
+            ? "<div style='margin-top:14px'><div class='f-label' style='margin-bottom:8px'>Озвучка чтений</div>" +
+              "<div class='say-chips'>" + k.say.map(function (s) {
+                return sayChip(s.t, s.r === "on" ? "オン" : "クン");
+              }).join("") + "</div></div>"
+            : "") +
         "</div>" +
         "<h2 class='section' style='margin-top:26px'>Слова с этим иероглифом</h2>" +
         "<div class='grid cols-2'>" + words.map(function (w) {
-          return "<div class='card entry'><div class='head'><span class='word'>" + ruby(w.word) + "</span>" +
+          return "<div class='card entry'><div class='tools'>" + sayBtn(w.reading || w.word) + "</div>" +
+            "<div class='head'><span class='word'>" + ruby(w.word) + "</span>" +
             (w.reading && w.reading !== w.word ? "<span class='reading'>" + esc(w.reading) + "</span>" : "") +
             (w.level ? JLPT.levelBadge(w.level) : "") + "</div><div class='mean'>" + esc(w.ru || "") + "</div></div>";
         }).join("") + "</div></section>");
@@ -575,6 +636,138 @@
     JLPT.store.state.settings.sound = !JLPT.soundOn();
     JLPT.store.save(); paintSound();
   };
+
+  /* ------------------------------------------------ ozvuchka panel ------ */
+  var voiceBtn = document.getElementById("voice-btn");
+  var voicePanel = document.getElementById("voice-panel");
+
+  function paintVoiceStatus() {
+    var el = document.getElementById("v-status");
+    if (!el) return;
+    el.textContent = "проверяю озвучку…";
+    JLPT.audioStatus().then(function (s) {
+      var line;
+      if (s.clipsBuilt) {
+        line = s.clips ? ("записей: " + s.clips + ", файлов: " + s.parts)
+                       : "готовых записей нет — говорим голосом браузера";
+      } else {
+        line = "озвучка создаётся браузером";
+      }
+      line += " · голос: " + (s.voiceName ? s.voiceName
+        : (s.jaVoices ? s.jaVoices + " яп." : (s.voices ? "японского нет" : "не определён")));
+      var now = document.getElementById("v-status");
+      if (now) now.textContent = line;
+      var hint = document.getElementById("v-hint");
+      if (hint) {
+        hint.textContent = s.voiceName
+          ? "Голос найден: " + s.voiceName + ". Записи не качаются — речь произносит сам браузер, поэтому сайт весит несколько мегабайт, а не сотен."
+          : "Нужен японский голос. Windows: «Параметры → Время и язык → Язык и регион → Добавить язык → Japanese», затем «Параметры → Речь → Добавить голос» (Microsoft Haruka) и перезапустить браузер. В Chrome, Android и iPhone японский голос уже есть.";
+      }
+    });
+  }
+
+  function voiceSelectHTML() {
+    var list = JLPT.jaVoices();
+    var current = JLPT.store.state.settings.voiceName || "";
+    if (!list.length) {
+      return "<div class='opt-row'><span>Голос:</span> японский голос в браузере не найден</div>";
+    }
+    var opts = ["<option value=''>автоматически (" + JLPT.jaVoices()[0].name + ")</option>"]
+      .concat(list.map(function (v) {
+        return "<option value=\"" + esc(v.name) + "\"" + (v.name === current ? " selected" : "") + ">" +
+               esc(v.name) + " (" + esc(v.lang) + ")</option>";
+      }));
+    return "<div class='opt-row'><label for='v-voice'>Голос:</label> <select id='v-voice'>" +
+           opts.join("") + "</select></div>";
+  }
+
+  function paintVoicePanel() {
+    if (!voicePanel) return;
+    var st = JLPT.store.state.settings;
+    voicePanel.innerHTML =
+      "<h3>Озвучка по-японски</h3>" +
+      "<label class='opt-row'><input type='checkbox' id='v-on'" + (JLPT.voiceOn() ? " checked" : "") + "><span>Включить озвучку (кнопки 🔊 на карточках)</span></label>" +
+      "<label class='opt-row'><input type='checkbox' id='v-auto'" + (JLPT.autoSayOn() ? " checked" : "") + "><span>Озвучивать ответ в тренажёре</span></label>" +
+      (JLPT.clipsBuilt()
+        ? "<label class='opt-row'><input type='checkbox' id='v-speech'" + (JLPT.browserVoiceOn() ? " checked" : "") + "><span>Если записи нет — говорить голосом браузера</span></label>"
+        : "") +
+      voiceSelectHTML() +
+      "<div class='opt-row'><span>Скорость:</span> " + [0.6, 0.8, 1].map(function (r) {
+        return "<button class='chip" + (st.rate === r ? " active" : "") + "' data-rate='" + r + "'>" +
+          String(r).replace(".", ",") + "×</button>";
+      }).join(" ") + "</div>" +
+      "<div class='row' style='margin-top:12px;align-items:center'>" +
+        "<button class='btn violet' id='v-test'>Прослушать 食べられる</button>" +
+        "<span class='count' id='v-status'>…</span>" +
+      "</div>" +
+      "<p class='sub' id='v-hint' style='margin-top:12px'></p>";
+
+    var onEl = document.getElementById("v-on");
+    var autoEl = document.getElementById("v-auto");
+    var spEl = document.getElementById("v-speech");
+    onEl.onchange = function () {
+      st.voice = onEl.checked; JLPT.store.save(); paintVoiceBtn();
+      if (!onEl.checked) JLPT.stopSay();
+    };
+    autoEl.onchange = function () { st.autosay = autoEl.checked; JLPT.store.save(); };
+    if (spEl) spEl.onchange = function () { st.speech = spEl.checked; JLPT.store.save(); };
+    var voiceEl = document.getElementById("v-voice");
+    if (voiceEl) voiceEl.onchange = function () {
+      st.voiceName = voiceEl.value || "";
+      JLPT.store.save();
+      paintVoiceStatus();
+    };
+    Array.prototype.forEach.call(voicePanel.querySelectorAll("[data-rate]"), function (b) {
+      b.onclick = function () {
+        st.rate = parseFloat(b.getAttribute("data-rate"));
+        JLPT.store.save();
+        Array.prototype.forEach.call(voicePanel.querySelectorAll("[data-rate]"), function (x) {
+          x.classList.toggle("active", x === b);
+        });
+      };
+    });
+    document.getElementById("v-test").onclick = function () {
+      JLPT.say("食べられる").then(function (ok) {
+        var el = document.getElementById("v-status");
+        if (el) el.textContent = ok ? "озвучка работает" : "не озвучено: в браузере нет японского голоса";
+        if (!ok) sayHint();
+      });
+    };
+    paintVoiceStatus();
+  }
+
+  function paintVoiceBtn() {
+    if (!voiceBtn) return;
+    voiceBtn.classList.toggle("off", !JLPT.voiceOn());
+    voiceBtn.setAttribute("aria-pressed", JLPT.voiceOn() ? "true" : "false");
+  }
+
+  if (voiceBtn && voicePanel) {
+    paintVoiceBtn();
+    voiceBtn.onclick = function (e) {
+      e.stopPropagation();
+      var open = voicePanel.hidden;
+      voicePanel.hidden = !open;
+      voiceBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) paintVoicePanel();
+    };
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !voicePanel.hidden) {
+        voicePanel.hidden = true;
+        voiceBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("click", function (e) {
+      if (voicePanel.hidden) return;
+      var node = e.target;
+      while (node && node !== document) {
+        if (node === voicePanel || node === voiceBtn) return;
+        node = node.parentNode;
+      }
+      voicePanel.hidden = true;
+      voiceBtn.setAttribute("aria-expanded", "false");
+    });
+  }
 
   route();
 })();
