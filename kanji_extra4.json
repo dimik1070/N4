@@ -1,0 +1,104 @@
+[
+ {
+  "character": "噌",
+  "level": "N3",
+  "strokes": 14,
+  "grade": 9,
+  "freq": null,
+  "radical": null,
+  "radical_number": null,
+  "onyomi": [
+   "ソウ",
+   "ショウ",
+   "ソ"
+  ],
+  "kunyomi": [
+   "かまびす.しい"
+  ],
+  "nanori": [],
+  "meanings": [
+   "boisterous"
+  ],
+  "words": [],
+  "supplementary": true,
+  "source_note": "kanjiapi.dev (KANJIDIC2-derived); used in 味噌 (N4 vocabulary)"
+ },
+ {
+  "character": "噛",
+  "level": "N3",
+  "strokes": 15,
+  "grade": null,
+  "freq": 2399,
+  "radical": null,
+  "radical_number": null,
+  "onyomi": [
+   "コウ",
+   "ゴウ"
+  ],
+  "kunyomi": [
+   "か.む",
+   "か.じる"
+  ],
+  "nanori": [],
+  "meanings": [
+   "chew",
+   "bite",
+   "gnaw"
+  ],
+  "words": [],
+  "supplementary": true,
+  "source_note": "kanjiapi.dev (KANJIDIC2-derived); used in 噛む (N4 vocabulary)"
+ },
+ {
+  "character": "賑",
+  "level": "N3",
+  "strokes": 14,
+  "grade": 9,
+  "freq": null,
+  "radical": null,
+  "radical_number": null,
+  "onyomi": [
+   "シン"
+  ],
+  "kunyomi": [
+   "にぎ.わい",
+   "にぎ.やか",
+   "にぎ.わす",
+   "にぎ.わう"
+  ],
+  "nanori": [],
+  "meanings": [
+   "flourish",
+   "be bustling",
+   "prosperity"
+  ],
+  "words": [],
+  "supplementary": true,
+  "source_note": "kanjiapi.dev (KANJIDIC2-derived); used in 賑やか (N4 vocabulary)"
+ },
+ {
+  "character": "飴",
+  "level": "N3",
+  "strokes": 13,
+  "grade": null,
+  "freq": null,
+  "radical": null,
+  "radical_number": null,
+  "onyomi": [
+   "イ",
+   "シ"
+  ],
+  "kunyomi": [
+   "あめ",
+   "やしな.う"
+  ],
+  "nanori": [],
+  "meanings": [
+   "rice jelly",
+   "candy"
+  ],
+  "words": [],
+  "supplementary": true,
+  "source_note": "kanjiapi.dev (KANJIDIC2-derived); 飴 (N4 vocabulary)"
+ }
+]

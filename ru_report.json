@@ -1,0 +1,44 @@
+{
+ "report": {
+  "vocab": {
+   "files_ok": 11,
+   "files_total": 11,
+   "problems": [],
+   "expected": 1304,
+   "applied": 1304
+  },
+  "kanji": {
+   "files_ok": 7,
+   "files_total": 7,
+   "problems": [],
+   "expected": 725,
+   "applied": 725,
+   "total_rows": 725
+  },
+  "grammar": {
+   "files_ok": 2,
+   "files_total": 2,
+   "problems": [],
+   "expected": 179,
+   "applied": 179
+  },
+  "examples": {
+   "files_ok": 31,
+   "files_total": 31,
+   "problems": [],
+   "expected": 3092,
+   "applied_vocab": 2558,
+   "applied_grammar": 534
+  },
+  "suspicious_ru": [],
+  "suspicious_count": 0
+ },
+ "integrity": {
+  "vocab_without_ru": 0,
+  "kanji_without_ru": 0,
+  "grammar_without_ru": 0,
+  "vocab_examples_without_ru": 0,
+  "grammar_examples_without_ru": 0,
+  "fk_violations": 0
+ }
+}

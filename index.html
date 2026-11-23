@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日本語 N4 — японский язык: слова, кандзи, грамматика</title>
+<meta name="description" content="Словарь 1304 слов JLPT N5+N4, 725 кандзи, 179 грамматических конструкций и тренажёр для запоминания.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Zen+Old+Mincho:wght@400;700;900&family=Unbounded:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛩️</text></svg>">
+</head>
+<body>
+<div class="petals" id="petals" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="logo" href="#/">
+    <span class="logo-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="34" height="34"><path d="M8 14h48v6H8zM12 22h40v5H12zM16 27h6v24h-6zM42 27h6v24h-6zM14 46h36v5H14z" fill="currentColor"/></svg>
+    </span>
+    <span class="logo-text"><b>日本語</b><i>N4</i></span>
+  </a>
+  <nav id="nav">
+    <a href="#/">Главная</a>
+    <a href="#/words">Слова</a>
+    <a href="#/kanji">Кандзи</a>
+    <a href="#/grammar">Грамматика</a>
+    <a href="#/train">Тренажёр</a>
+    <a href="#/progress">Прогресс</a>
+  </nav>
+  <button class="icon-btn" id="sound-btn" title="Звук ответов" aria-pressed="true">♪</button>
+</header>
+
+<main id="app"></main>
+
+<footer class="foot">
+  <div class="foot-license">
+    Данные: OpenJLPT (CC BY-SA 4.0) на основе JMdict, KANJIDIC2 (EDRDG), списков JLPT Джонатана Уоллера и Tatoeba.
+    Русские переводы — переводческая работа, не часть словарных источников.
+  </div>
+  <div class="foot-jp" aria-hidden="true">がんばって</div>
+</footer>
+
+<script src="data.js"></script>
+<script src="train.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
